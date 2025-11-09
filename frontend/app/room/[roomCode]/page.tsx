@@ -58,15 +58,12 @@ export default function RoomPage({ params }: { params: Promise<{ roomCode: strin
 
   const initializeRoom = async () => {
     try {
-      // Fetch room info
       const response = await fetch(`${API_BASE_URL}/api/rooms/${roomCode}`);
       const room = await response.json();
       setRoomName(room.roomName);
 
-      // Initialize WebSocket
       wsServiceRef.current = new WebSocketService(roomCode, sessionId, username, roomId);
 
-      // Setup WebSocket callbacks
       wsServiceRef.current.onChatMessage((message) => {
         setChatMessages(prev => [...prev, message]);
       });
@@ -96,7 +93,6 @@ export default function RoomPage({ params }: { params: Promise<{ roomCode: strin
     try {
       webrtcManagerRef.current = new WebRTCManager(wsServiceRef.current, sessionId);
 
-      // Setup WebRTC callbacks
       webrtcManagerRef.current.onRemoteStream((remoteSessionId, stream) => {
         setRemotePeers(prev => {
           const existing = prev.find(p => p.sessionId === remoteSessionId);
@@ -119,7 +115,6 @@ export default function RoomPage({ params }: { params: Promise<{ roomCode: strin
         setRemotePeers(prev => prev.filter(p => p.sessionId !== remoteSessionId));
       });
 
-      // Get local media
       const stream = await webrtcManagerRef.current.initialize(localVideoRef.current);
       setLocalStream(stream);
 
@@ -131,14 +126,12 @@ export default function RoomPage({ params }: { params: Promise<{ roomCode: strin
 
   const handleParticipantEvent = (event: ParticipantEvent) => {
     if (event.type === 'join' && event.participant) {
-      // Create offer for new participant
       if (event.participant.sessionId !== sessionId && webrtcManagerRef.current) {
         setTimeout(() => {
           webrtcManagerRef.current?.createOffer(event.participant!.sessionId);
         }, 1000);
       }
 
-      // Add to remote peers
       setRemotePeers(prev => {
         const exists = prev.find(p => p.sessionId === event.participant!.sessionId);
         if (!exists && event.participant!.sessionId !== sessionId) {

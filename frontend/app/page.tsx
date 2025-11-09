@@ -38,7 +38,6 @@ export default function Home() {
 
       const room = await response.json();
 
-      // Join the room
       const joinResponse = await fetch(`${API_BASE_URL}/api/rooms/join`, {
         method: 'POST',
           headers: {
@@ -55,7 +54,6 @@ export default function Home() {
 
       const participant = await joinResponse.json();
 
-      // Navigate to room with session data
       router.push(`/room/${room.roomCode}?sessionId=${participant.sessionId}&username=${username.trim()}&roomId=${room.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -74,12 +72,10 @@ export default function Home() {
     setError('');
 
     try {
-      // First verify room exists
       const roomResponse = await fetch(`${API_BASE_URL}/api/rooms/${roomCode.trim()}`);
       if (!roomResponse.ok) throw new Error('Room not found');
 
       const room = await roomResponse.json();
-
       // Join the room
       const joinResponse = await fetch(`${API_BASE_URL}/api/rooms/join`, {
         method: 'POST',
@@ -97,7 +93,6 @@ export default function Home() {
 
       const participant = await joinResponse.json();
 
-      // Navigate to room
       router.push(`/room/${roomCode.trim()}?sessionId=${participant.sessionId}&username=${username.trim()}&roomId=${room.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');

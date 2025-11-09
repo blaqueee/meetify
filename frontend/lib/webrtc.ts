@@ -19,13 +19,11 @@ export class WebRTCManager {
     this.wsService = wsService;
     this.sessionId = sessionId;
 
-    // Setup WebSocket signal handler
     this.wsService.onSignal(this.handleSignal.bind(this));
   }
 
   async initialize(localVideoRef: HTMLVideoElement) {
     try {
-      // Get local media stream
       this.localStream = await navigator.mediaDevices.getUserMedia({
         video: {
           width: { ideal: 1280 },
@@ -34,7 +32,6 @@ export class WebRTCManager {
         audio: true
       });
 
-      // Set local video
       localVideoRef.srcObject = this.localStream;
 
       return this.localStream;
@@ -121,14 +118,12 @@ export class WebRTCManager {
     if (!peerConnection) {
       peerConnection = new RTCPeerConnection({ iceServers: ICE_SERVERS });
 
-      // Add local tracks
       if (this.localStream) {
         this.localStream.getTracks().forEach(track => {
           peerConnection!.addTrack(track, this.localStream!);
         });
       }
 
-      // Handle ICE candidates
       peerConnection.onicecandidate = (event) => {
         if (event.candidate) {
           this.wsService.sendSignal({
@@ -140,14 +135,12 @@ export class WebRTCManager {
         }
       };
 
-      // Handle remote stream
       peerConnection.ontrack = (event) => {
         if (this.onRemoteStreamCallback && event.streams[0]) {
           this.onRemoteStreamCallback(remoteSessionId, event.streams[0]);
         }
       };
 
-      // Handle connection state changes
       peerConnection.onconnectionstatechange = () => {
         if (peerConnection!.connectionState === 'failed' ||
             peerConnection!.connectionState === 'disconnected' ||
@@ -199,13 +192,11 @@ export class WebRTCManager {
   }
 
   cleanup() {
-    // Close all peer connections
     this.peerConnections.forEach((pc, sessionId) => {
       pc.close();
     });
     this.peerConnections.clear();
 
-    // Stop local stream
     if (this.localStream) {
       this.localStream.getTracks().forEach(track => track.stop());
       this.localStream = null;
