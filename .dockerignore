@@ -1,0 +1,30 @@
+# Backend .dockerignore
+.git
+.gitignore
+README.md
+INFO.md
+REFACTORING_SUMMARY.md
+
+# Gradle
+.gradle
+build
+!gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+.idea
+.vscode
+*.iml
+*.iws
+*.ipr
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Frontend
+frontend
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore

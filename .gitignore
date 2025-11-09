@@ -42,5 +42,8 @@ out/
 .AppleDouble
 .LSOverride
 
+### Docker ###
+.env
 
+### Claude ###
 .CLAUDE.md

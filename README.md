@@ -210,7 +210,7 @@ MIT License - feel free to use this project for learning or commercial purposes.
 ## Support
 
 For issues or questions:
-- Check [CLAUDE.md](CLAUDE.md) for architecture details
+- Check [CLAUDE.md](INFO) for architecture details
 - Check [API_USAGE.md](API_USAGE.md) for API examples
 - Review [frontend/README.md](frontend/README.md) for frontend specifics
 
