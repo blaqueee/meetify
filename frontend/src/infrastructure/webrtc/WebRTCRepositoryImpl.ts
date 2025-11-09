@@ -1,65 +1,63 @@
-import { WebSocketService } from './websocket';
-import { WebRTCSignal } from '@/types';
+import { IWebRTCRepository, WebRTCSignal, RemotePeer } from '../../domain/repositories/IWebRTCRepository';
+import { IWebSocketRepository } from '../../domain/repositories/IWebSocketRepository';
+import { API_CONFIG } from '../../shared/config';
 
-const ICE_SERVERS = [
-  { urls: 'stun:stun.l.google.com:19302' },
-  { urls: 'stun:stun1.l.google.com:19302' },
-];
-
-export class WebRTCManager {
+export class WebRTCRepositoryImpl implements IWebRTCRepository {
   private peerConnections: Map<string, RTCPeerConnection> = new Map();
-  private wsService: WebSocketService;
+  private peerUsernames: Map<string, string> = new Map();
   private localStream: MediaStream | null = null;
   private sessionId: string;
+  private wsRepository: IWebSocketRepository;
 
-  private onRemoteStreamCallback?: (sessionId: string, stream: MediaStream) => void;
+  private onRemoteStreamCallback?: (peer: RemotePeer) => void;
   private onPeerDisconnectedCallback?: (sessionId: string) => void;
 
-  constructor(wsService: WebSocketService, sessionId: string) {
-    this.wsService = wsService;
+  constructor(wsRepository: IWebSocketRepository, sessionId: string) {
+    this.wsRepository = wsRepository;
     this.sessionId = sessionId;
 
-    this.wsService.onSignal(this.handleSignal.bind(this));
+    this.wsRepository.onSignal(this.handleSignal.bind(this));
   }
 
-  async initialize(localVideoRef: HTMLVideoElement) {
+  async initialize(videoElement: HTMLVideoElement): Promise<MediaStream> {
     try {
       this.localStream = await navigator.mediaDevices.getUserMedia({
         video: {
           width: { ideal: 1280 },
-          height: { ideal: 720 }
+          height: { ideal: 720 },
         },
-        audio: true
+        audio: true,
       });
 
-      localVideoRef.srcObject = this.localStream;
+      videoElement.srcObject = this.localStream;
 
       return this.localStream;
     } catch (error) {
       console.error('Error accessing media devices:', error);
-      throw error;
+      throw new Error('Failed to access camera and microphone');
     }
   }
 
-  async createOffer(remoteSessionId: string) {
+  async createOffer(remoteSessionId: string): Promise<void> {
     const peerConnection = this.getOrCreatePeerConnection(remoteSessionId);
 
     try {
       const offer = await peerConnection.createOffer();
       await peerConnection.setLocalDescription(offer);
 
-      this.wsService.sendSignal({
+      this.wsRepository.sendSignal({
         type: 'offer',
         senderSessionId: this.sessionId,
         targetSessionId: remoteSessionId,
-        data: offer
+        data: offer,
       });
     } catch (error) {
       console.error('Error creating offer:', error);
+      throw new Error('Failed to create WebRTC offer');
     }
   }
 
-  private async handleSignal(signal: WebRTCSignal) {
+  async handleSignal(signal: WebRTCSignal): Promise<void> {
     const remoteSessionId = signal.senderSessionId;
 
     if (signal.type === 'offer') {
@@ -71,7 +69,7 @@ export class WebRTCManager {
     }
   }
 
-  private async handleOffer(remoteSessionId: string, offer: RTCSessionDescriptionInit) {
+  private async handleOffer(remoteSessionId: string, offer: RTCSessionDescriptionInit): Promise<void> {
     const peerConnection = this.getOrCreatePeerConnection(remoteSessionId);
 
     try {
@@ -79,18 +77,18 @@ export class WebRTCManager {
       const answer = await peerConnection.createAnswer();
       await peerConnection.setLocalDescription(answer);
 
-      this.wsService.sendSignal({
+      this.wsRepository.sendSignal({
         type: 'answer',
         senderSessionId: this.sessionId,
         targetSessionId: remoteSessionId,
-        data: answer
+        data: answer,
       });
     } catch (error) {
       console.error('Error handling offer:', error);
     }
   }
 
-  private async handleAnswer(remoteSessionId: string, answer: RTCSessionDescriptionInit) {
+  private async handleAnswer(remoteSessionId: string, answer: RTCSessionDescriptionInit): Promise<void> {
     const peerConnection = this.peerConnections.get(remoteSessionId);
     if (!peerConnection) return;
 
@@ -101,7 +99,7 @@ export class WebRTCManager {
     }
   }
 
-  private async handleIceCandidate(remoteSessionId: string, candidate: RTCIceCandidateInit) {
+  private async handleIceCandidate(remoteSessionId: string, candidate: RTCIceCandidateInit): Promise<void> {
     const peerConnection = this.peerConnections.get(remoteSessionId);
     if (!peerConnection) return;
 
@@ -116,35 +114,44 @@ export class WebRTCManager {
     let peerConnection = this.peerConnections.get(remoteSessionId);
 
     if (!peerConnection) {
-      peerConnection = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+      peerConnection = new RTCPeerConnection({
+        iceServers: [...API_CONFIG.webrtc.iceServers]
+      });
 
       if (this.localStream) {
-        this.localStream.getTracks().forEach(track => {
+        this.localStream.getTracks().forEach((track) => {
           peerConnection!.addTrack(track, this.localStream!);
         });
       }
 
       peerConnection.onicecandidate = (event) => {
         if (event.candidate) {
-          this.wsService.sendSignal({
+          this.wsRepository.sendSignal({
             type: 'ice-candidate',
             senderSessionId: this.sessionId,
             targetSessionId: remoteSessionId,
-            data: event.candidate
+            data: event.candidate,
           });
         }
       };
 
       peerConnection.ontrack = (event) => {
         if (this.onRemoteStreamCallback && event.streams[0]) {
-          this.onRemoteStreamCallback(remoteSessionId, event.streams[0]);
+          const username = this.peerUsernames.get(remoteSessionId) || remoteSessionId;
+          this.onRemoteStreamCallback({
+            sessionId: remoteSessionId,
+            username,
+            stream: event.streams[0],
+          });
         }
       };
 
       peerConnection.onconnectionstatechange = () => {
-        if (peerConnection!.connectionState === 'failed' ||
-            peerConnection!.connectionState === 'disconnected' ||
-            peerConnection!.connectionState === 'closed') {
+        if (
+          peerConnection!.connectionState === 'failed' ||
+          peerConnection!.connectionState === 'disconnected' ||
+          peerConnection!.connectionState === 'closed'
+        ) {
           this.removePeerConnection(remoteSessionId);
         }
       };
@@ -155,11 +162,12 @@ export class WebRTCManager {
     return peerConnection;
   }
 
-  private removePeerConnection(remoteSessionId: string) {
+  private removePeerConnection(remoteSessionId: string): void {
     const peerConnection = this.peerConnections.get(remoteSessionId);
     if (peerConnection) {
       peerConnection.close();
       this.peerConnections.delete(remoteSessionId);
+      this.peerUsernames.delete(remoteSessionId);
 
       if (this.onPeerDisconnectedCallback) {
         this.onPeerDisconnectedCallback(remoteSessionId);
@@ -167,38 +175,43 @@ export class WebRTCManager {
     }
   }
 
-  toggleAudio(enabled: boolean) {
+  toggleAudio(enabled: boolean): void {
     if (this.localStream) {
-      this.localStream.getAudioTracks().forEach(track => {
+      this.localStream.getAudioTracks().forEach((track) => {
         track.enabled = enabled;
       });
     }
   }
 
-  toggleVideo(enabled: boolean) {
+  toggleVideo(enabled: boolean): void {
     if (this.localStream) {
-      this.localStream.getVideoTracks().forEach(track => {
+      this.localStream.getVideoTracks().forEach((track) => {
         track.enabled = enabled;
       });
     }
   }
 
-  onRemoteStream(callback: (sessionId: string, stream: MediaStream) => void) {
+  onRemoteStream(callback: (peer: RemotePeer) => void): void {
     this.onRemoteStreamCallback = callback;
   }
 
-  onPeerDisconnected(callback: (sessionId: string) => void) {
+  onPeerDisconnected(callback: (sessionId: string) => void): void {
     this.onPeerDisconnectedCallback = callback;
   }
 
-  cleanup() {
-    this.peerConnections.forEach((pc, sessionId) => {
+  registerPeerUsername(sessionId: string, username: string): void {
+    this.peerUsernames.set(sessionId, username);
+  }
+
+  cleanup(): void {
+    this.peerConnections.forEach((pc) => {
       pc.close();
     });
     this.peerConnections.clear();
+    this.peerUsernames.clear();
 
     if (this.localStream) {
-      this.localStream.getTracks().forEach(track => track.stop());
+      this.localStream.getTracks().forEach((track) => track.stop());
       this.localStream = null;
     }
   }

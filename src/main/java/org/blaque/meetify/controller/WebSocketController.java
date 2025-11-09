@@ -33,14 +33,12 @@ public class WebSocketController {
         log.info("WebRTC signal received in room {}: type={}, from={}, to={}",
                 roomCode, signal.getType(), signal.getSenderSessionId(), signal.getTargetSessionId());
 
-        // If targetSessionId is specified, send to specific user
         if (signal.getTargetSessionId() != null && !signal.getTargetSessionId().isEmpty()) {
             messagingTemplate.convertAndSend(
                     "/queue/signal/" + signal.getTargetSessionId(),
                     signal
             );
         } else {
-            // Broadcast to all participants in the room
             messagingTemplate.convertAndSend(
                     "/topic/room/" + roomCode + "/signal",
                     signal
@@ -66,10 +64,8 @@ public class WebSocketController {
         try {
             UUID roomId = UUID.fromString(roomIdStr);
 
-            // Save message to database
             ChatMessageDTO chatMessage = chatService.saveMessage(roomId, senderUsername, senderSessionId, message);
 
-            // Broadcast to all participants in the room
             messagingTemplate.convertAndSend(
                     "/topic/room/" + roomCode + "/chat",
                     chatMessage
@@ -88,7 +84,6 @@ public class WebSocketController {
     public void handleParticipantStatus(@DestinationVariable String roomCode, @Payload Map<String, Object> status) {
         log.info("Participant status update in room {}: {}", roomCode, status);
 
-        // Broadcast status update to all participants
         messagingTemplate.convertAndSend(
                 "/topic/room/" + roomCode + "/participant",
                 status
@@ -104,7 +99,6 @@ public class WebSocketController {
     public void handleParticipantJoin(@DestinationVariable String roomCode, @Payload Map<String, String> participant) {
         log.info("Participant joined room {}: {}", roomCode, participant);
 
-        // Broadcast join event to all participants
         messagingTemplate.convertAndSend(
                 "/topic/room/" + roomCode + "/participant",
                 Map.of(
@@ -124,7 +118,6 @@ public class WebSocketController {
     public void handleParticipantLeave(@DestinationVariable String roomCode, @Payload Map<String, String> participant) {
         log.info("Participant left room {}: {}", roomCode, participant);
 
-        // Broadcast leave event to all participants
         messagingTemplate.convertAndSend(
                 "/topic/room/" + roomCode + "/participant",
                 Map.of(

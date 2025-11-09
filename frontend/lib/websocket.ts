@@ -61,7 +61,6 @@ export class WebSocketService {
   private subscribeToTopics() {
     if (!this.client) return;
 
-    // Subscribe to WebRTC signaling (broadcast)
     this.client.subscribe(`/topic/room/${this.roomCode}/signal`, (message: IMessage) => {
       const signal: WebRTCSignal = JSON.parse(message.body);
       if (this.onSignalCallback && signal.senderSessionId !== this.sessionId) {
@@ -69,7 +68,6 @@ export class WebSocketService {
       }
     });
 
-    // Subscribe to direct signals
     this.client.subscribe(`/queue/signal/${this.sessionId}`, (message: IMessage) => {
       const signal: WebRTCSignal = JSON.parse(message.body);
       if (this.onSignalCallback) {
@@ -77,7 +75,6 @@ export class WebSocketService {
       }
     });
 
-    // Subscribe to chat messages
     this.client.subscribe(`/topic/room/${this.roomCode}/chat`, (message: IMessage) => {
       const chatMessage: ChatMessage = JSON.parse(message.body);
       if (this.onChatMessageCallback) {
@@ -85,7 +82,6 @@ export class WebSocketService {
       }
     });
 
-    // Subscribe to participant events
     this.client.subscribe(`/topic/room/${this.roomCode}/participant`, (message: IMessage) => {
       const event: ParticipantEvent = JSON.parse(message.body);
       if (this.onParticipantEventCallback) {

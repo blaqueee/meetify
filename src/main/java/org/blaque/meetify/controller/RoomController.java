@@ -3,10 +3,12 @@ package org.blaque.meetify.controller;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.blaque.meetify.dto.*;
+import org.blaque.meetify.service.ChatService;
 import org.blaque.meetify.service.RoomService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -15,6 +17,7 @@ import java.util.UUID;
 public class RoomController {
 
     private final RoomService roomService;
+    private final ChatService chatService;
 
     @PostMapping
     public ResponseEntity<RoomResponse> createRoom(@Valid @RequestBody CreateRoomRequest request) {
@@ -43,5 +46,12 @@ public class RoomController {
     public ResponseEntity<Void> leaveRoom(@PathVariable String sessionId) {
         roomService.leaveRoom(sessionId);
         return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/{roomCode}/messages")
+    public ResponseEntity<List<ChatMessageDTO>> getChatHistory(@PathVariable String roomCode) {
+        RoomResponse room = roomService.getRoomByCode(roomCode);
+        List<ChatMessageDTO> messages = chatService.getRoomMessages(UUID.fromString(String.valueOf(room.getId())));
+        return ResponseEntity.ok(messages);
     }
 }
